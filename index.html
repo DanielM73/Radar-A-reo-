@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Radar Aéreo</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+    .alerta { color: #f00; font-weight: bold; }
+    .radar-log { background: #000; padding: 10px; border-radius: 5px; margin-top: 10px; }
+    canvas { background-color: #000; display: block; margin: 20px auto; border: 1px solid #0f0; }
+    h1, h2 { color: #0f0; }
+    pre { background: #222; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Radar Aéreo</h1>
+  <canvas id="radarCanvas" width="300" height="300"></canvas>
+  <div class="radar-log" id="radar"></div>
+  <h2>Orden de Aterrizaje</h2>
+  <pre id="aterrizajes"></pre>
+
+  <script>
+    // === Clases de aeronaves ===
+    class Aeronave {
+      constructor(nombre) {
+        this.nombre = nombre;
+        this.altitud = 10000;
+        this.velocidad = 800;
+        this.combustible = 100;
+      }
+      actualizarPosicion() {}
+      tipo() { return ""; }
+      esDeEmergencia() { return false; }
+      consumirCombustible(c) {
+        this.combustible = Math.max(0, this.combustible - c);
+      }
+    }
+
+    class AvionComercial extends Aeronave {
+      actualizarPosicion() { this.altitud -= 300; this.consumirCombustible(5); }
+      tipo() { return "Avión Comercial"; }
+    }
+
+    class Helicoptero extends Aeronave {
+      actualizarPosicion() { this.altitud -= 200; this.consumirCombustible(3); }
+      tipo() { return "Helicóptero"; }
+    }
+
+    class AvionEmergencia extends Aeronave {
+      actualizarPosicion() { this.altitud -= 500; this.consumirCombustible(8); }
+      tipo() { return "Emergencia"; }
+      esDeEmergencia() { return true; }
+    }
+
+    class AvionVIP extends Aeronave {
+      actualizarPosicion() { this.altitud -= 350; this.consumirCombustible(6); }
+      tipo() { return "Avión VIP"; }
+    }
+
+    const aeronaves = [
+      new AvionComercial("AC101"),
+      new Helicoptero("H202"),
+      new AvionEmergencia("EM999"),
+      new AvionComercial("AC303"),
+      new AvionVIP("C1-VIP")
+    ];
+
+    const finalizado = Array(aeronaves.length).fill(false);
+    const colaAterrizaje = [];
+
+    function mostrarRadar() {
+      const radarDiv = document.getElementById("radar");
+      radarDiv.innerHTML = "";
+      aeronaves.forEach((aeronave, i) => {
+        const alerta = aeronave.esDeEmergencia() || aeronave.combustible < 10;
+        const div = document.createElement("div");
+        div.innerHTML = (alerta ? "[!ALERTA!] " : "") +
+          `${aeronave.nombre} (${aeronave.tipo()}) - Altitud: ${aeronave.altitud} | Velocidad: ${aeronave.velocidad} | Combustible: ${aeronave.combustible}`;
+        if (alerta) div.classList.add("alerta");
+        radarDiv.appendChild(div);
+      });
+    }
+
+    function simularAeronave(i) {
+      const a = aeronaves[i];
+      const intervalo = setInterval(() => {
+        if (a.altitud > 0 && a.combustible > 0) {
+          a.actualizarPosicion();
+        } else {
+          colaAterrizaje.push(a);
+          finalizado[i] = true;
+          clearInterval(intervalo);
+        }
+      }, 1000);
+    }
+
+    function procesarAterrizajes() {
+      const ordenDiv = document.getElementById("aterrizajes");
+      const orden = colaAterrizaje.sort((a, b) => {
+        const pa = a.esDeEmergencia() || a.combustible < 10;
+        const pb = b.esDeEmergencia() || b.combustible < 10;
+        return pb - pa;
+      });
+      ordenDiv.textContent = orden.map(a => `${a.nombre} (${a.tipo()})`).join('\n');
+    }
+
+    // === Animación del radar estilo "curl parrot" ===
+    const canvas = document.getElementById("radarCanvas");
+    const ctx = canvas.getContext("2d");
+    let angle = 0;
+
+    function dibujarRadar() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fondo
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Círculos
+      ctx.strokeStyle = "#0f0";
+      for (let r = 50; r <= 150; r += 50) {
+        ctx.beginPath();
+        ctx.arc(150, 150, r, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
+      // Barrido
+      const x = 150 + 150 * Math.cos(angle);
+      const y = 150 + 150 * Math.sin(angle);
+      ctx.strokeStyle = "#0f0";
+      ctx.beginPath();
+      ctx.moveTo(150, 150);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      angle += 0.05;
+      requestAnimationFrame(dibujarRadar);
+    }
+
+    // === Iniciar simulación ===
+    aeronaves.forEach((_, i) => simularAeronave(i));
+
+    setInterval(() => {
+      mostrarRadar();
+      if (finalizado.every(v => v)) {
+        procesarAterrizajes();
+      }
+    }, 500);
+
+    dibujarRadar(); // iniciar radar animado
+  </script>
+</body>
+</html>
